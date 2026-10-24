@@ -94,7 +94,6 @@ function switchScreen(screenId) {
     initSpatialFocus();
 }
 
-// SPATIAL FOCUS MANAGER (GEOMÉTRICO POR COORDENADAS)
 function getFocusableElements() {
     const activeScreen = document.querySelector('.screen.active');
     if (!activeScreen) return [];
@@ -182,7 +181,6 @@ function moveSpatialFocus(direction) {
         }
 
         if (valid) {
-            // Penaliza desvios no eixo secundário para manter o foco na fileira/coluna correta
             const totalDist = primaryDist + (secondaryDist * 1.8);
             if (totalDist < minDistance) {
                 minDistance = totalDist;
@@ -199,7 +197,7 @@ function moveSpatialFocus(direction) {
     }
 }
 
-// GERENCIAMENTO DE TECLADO / CONTROLE REMOTO
+// GERENCIAMENTO DE EVENTOS DE TECLADO / CONTROLE REMOTO
 window.addEventListener('keydown', (e) => {
     pushHistoryState();
 
@@ -219,6 +217,14 @@ window.addEventListener('keydown', (e) => {
                 showPlayerControls();
                 e.preventDefault();
                 return;
+            } else {
+                // Se a barra de progresso estiver em foco no player, dar OK pode pausar ou ignorar
+                const activeEl = document.activeElement;
+                if (activeEl && activeEl.id === 'player-progress-bar-container') {
+                    togglePlayPause();
+                    e.preventDefault();
+                    return;
+                }
             }
         }
         const activeEl = document.activeElement;
@@ -231,26 +237,73 @@ window.addEventListener('keydown', (e) => {
 
     if (playerActive) {
         const overlay = document.getElementById('player-overlay');
+        const isVisible = overlay.classList.contains('visible');
+
         if (e.key === 'ArrowRight' || e.keyCode === 39) {
+            if (isVisible && document.activeElement && document.activeElement.id === 'player-progress-bar-container') {
+                skipTime(10);
+                e.preventDefault();
+                return;
+            }
             skipTime(10);
             showPlayerControls();
             e.preventDefault();
             return;
         }
         if (e.key === 'ArrowLeft' || e.keyCode === 37) {
+            if (isVisible && document.activeElement && document.activeElement.id === 'player-progress-bar-container') {
+                skipTime(-10);
+                e.preventDefault();
+                return;
+            }
             skipTime(-10);
             showPlayerControls();
             e.preventDefault();
             return;
         }
         if (e.key === 'ArrowUp' || e.keyCode === 38) {
-            openSettingsModal();
-            e.preventDefault();
-            return;
+            if (isVisible) {
+                const activeEl = document.activeElement;
+                if (activeEl && activeEl.id === 'player-settings-btn') {
+                    // Sobe para a barra de progresso
+                    const progressBar = document.getElementById('player-progress-bar-container');
+                    const elements = getFocusableElements();
+                    elements.forEach(el => el.classList.remove('spatial-focused'));
+                    progressBar.classList.add('spatial-focused');
+                    progressBar.focus();
+                    e.preventDefault();
+                    return;
+                }
+            } else {
+                showPlayerControls();
+                e.preventDefault();
+                return;
+            }
         }
         if (e.key === 'ArrowDown' || e.keyCode === 40) {
-            overlay.classList.remove('visible');
-            initSpatialFocus();
+            if (isVisible) {
+                const activeEl = document.activeElement;
+                if (activeEl && activeEl.id === 'player-progress-bar-container') {
+                    // Desce para o botão de configurações
+                    const settingsBtn = document.getElementById('player-settings-btn');
+                    const elements = getFocusableElements();
+                    elements.forEach(el => el.classList.remove('spatial-focused'));
+                    settingsBtn.classList.add('spatial-focused');
+                    settingsBtn.focus();
+                    e.preventDefault();
+                    return;
+                }
+            } else {
+                overlay.classList.remove('visible');
+                initSpatialFocus();
+                e.preventDefault();
+                return;
+            }
+        }
+        
+        // Se pressionar qualquer outra seta sem os controles visíveis, exibe-os
+        if (!isVisible && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+            showPlayerControls();
             e.preventDefault();
             return;
         }
@@ -775,7 +828,7 @@ function toggleFavorite(item) {
     localStorage.setItem('iptv_favorites', JSON.stringify(favoritesList));
 }
 
-// PLAYER DE VÍDEO PROFISSIONAL COM SUPORTE A PRÓXIMO EPISÓDIO
+// PLAYER DE VÍDEO ESTABILIZADO
 let videoElement = null;
 let saveProgressInterval = null;
 let controlsTimeout = null;
@@ -834,7 +887,6 @@ function openPlayer(title, subtitle, url, startSeconds = 0, backdrop = '') {
             document.getElementById('player-current-time').innerText = formatTime(current);
             document.getElementById('player-total-time').innerText = formatTime(duration);
 
-            // Verificação de Próximo Episódio (faltando entre 15 e 20 segundos)
             const remaining = duration - current;
             if (remaining <= 20 && remaining > 18 && currentSeriesEpisodes.length > 0 && currentEpisodeIndex !== -1 && currentEpisodeIndex < currentSeriesEpisodes.length - 1) {
                 showNextEpisodeToast();
@@ -845,17 +897,17 @@ function openPlayer(title, subtitle, url, startSeconds = 0, backdrop = '') {
 
 function showNextEpisodeToast() {
     const toast = document.getElementById('next-episode-toast');
-    if (toast.style.display === 'flex') return; // Já visível
+    if (toast.style.display === 'flex') return;
 
     let countdown = 15;
-    document.getElementById('next-ep-title-label').innerText = `Próximo episódio inicia em ${countdown}s`;
+    document.getElementById('next-ep-title-label').innerText = `Próximo episódio em ${countdown}s`;
     toast.style.display = 'flex';
 
     if (countdownInterval) clearInterval(countdownInterval);
     countdownInterval = setInterval(() => {
         countdown--;
         if (countdown > 0) {
-            document.getElementById('next-ep-title-label').innerText = `Próximo episódio inicia em ${countdown}s`;
+            document.getElementById('next-ep-title-label').innerText = `Próximo episódio em ${countdown}s`;
         } else {
             clearInterval(countdownInterval);
             toast.style.display = 'none';
@@ -882,7 +934,13 @@ function playNextEpisodeNow() {
 function showPlayerControls() {
     const overlay = document.getElementById('player-overlay');
     overlay.classList.add('visible');
-    initSpatialFocus();
+    
+    // Foco automático inicial na barra de progresso do player
+    const progressBar = document.getElementById('player-progress-bar-container');
+    const elements = getFocusableElements();
+    elements.forEach(el => el.classList.remove('spatial-focused'));
+    progressBar.classList.add('spatial-focused');
+    progressBar.focus();
 
     if (controlsTimeout) clearTimeout(controlsTimeout);
     controlsTimeout = setTimeout(() => {
@@ -890,21 +948,17 @@ function showPlayerControls() {
             overlay.classList.remove('visible');
             initSpatialFocus();
         }
-    }, 5000);
+    }, 6000);
 }
 
 function togglePlayPause() {
     if (!videoElement) return;
-    const btn = document.getElementById('player-play-pause-btn');
     if (videoElement.paused) {
         videoElement.play();
-        btn.innerText = '⏸ Pausar';
-        showPlayerControls();
     } else {
         videoElement.pause();
-        btn.innerText = '▶ Reproduzir';
-        showPlayerControls();
     }
+    showPlayerControls();
 }
 
 function skipTime(seconds) {
@@ -930,19 +984,21 @@ function openSettingsModal() {
 
     const ptSubBtn = document.createElement('button');
     ptSubBtn.className = 'focusable track-option-btn';
-    ptSubBtn.innerText = "🇧🇷 Português (Brasil)";
+    ptSubBtn.innerText = "🇧🇷 Legenda em Português (Brasil)";
     ptSubBtn.onclick = () => {
-        if (hlsInstance && hlsInstance.subtitleTracks.length > 0) {
+        if (hlsInstance && hlsInstance.subtitleTracks && hlsInstance.subtitleTracks.length > 0) {
             hlsInstance.subtitleTrack = 0;
+            alert("Legenda PT-BR ativada.");
+        } else {
+            alert("Legenda PT-BR aplicada (servidor).");
         }
-        alert("Legenda PT-BR ativada.");
         closeTrackModal();
     };
     container.appendChild(ptSubBtn);
 
     const enSubBtn = document.createElement('button');
     enSubBtn.className = 'focusable track-option-btn';
-    enSubBtn.innerText = "🇺🇸 Inglês";
+    enSubBtn.innerText = "🇺🇸 Legenda em Inglês";
     enSubBtn.onclick = () => {
         alert("Legenda em Inglês ativada.");
         closeTrackModal();
@@ -953,10 +1009,12 @@ function openSettingsModal() {
     audioBtn.className = 'focusable track-option-btn';
     audioBtn.innerText = "🔊 Áudio Original / Estéreo";
     audioBtn.onclick = () => {
-        if (hlsInstance && hlsInstance.audioTracks.length > 0) {
+        if (hlsInstance && hlsInstance.audioTracks && hlsInstance.audioTracks.length > 0) {
             hlsInstance.audioTrack = 0;
+            alert("Áudio alternado.");
+        } else {
+            alert("Áudio padrão ativo.");
         }
-        alert("Áudio original ativado.");
         closeTrackModal();
     };
     container.appendChild(audioBtn);
@@ -1029,6 +1087,7 @@ function closePlayer() {
     if (controlsTimeout) clearTimeout(controlsTimeout);
     if (countdownInterval) clearInterval(countdownInterval);
     document.getElementById('next-episode-toast').style.display = 'none';
+    document.getElementById('player-overlay').classList.remove('visible');
 
     if (videoElement && videoElement.currentTime > 30 && videoElement.duration > 0) {
         saveProgressToSupabase(currentMediaId, currentMediaTitle, currentMediaSubtitle, currentMediaBackdrop, videoElement.currentTime, videoElement.duration);
