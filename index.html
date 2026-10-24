@@ -9,14 +9,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.10/hls.min.js"></script>
 </head>
 <body>
-    <!-- LOADER MODERNO -->
     <div id="app-loader" class="loader-overlay" style="display:none;">
         <div class="aura-spinner"></div>
         <span id="loader-text">Carregando...</span>
     </div>
 
     <!-- TELA DE LOGIN -->
-    <div id="login-screen" class="screen active">
+    <div id="login-screen" class="screen active" data-nav-section="login">
         <div class="login-container">
             <h1 class="app-logo-text">AURA PLAYER</h1>
             <p>Insira as credenciais do seu painel IPTV</p>
@@ -31,9 +30,9 @@
 
     <!-- APLICAÇÃO PRINCIPAL -->
     <div id="main-app-screen" class="screen">
-        <header class="navbar">
-            <div class="brand" onclick="switchTab('home')">AURA</div>
-            <nav class="nav-menu" id="main-navbar-menu">
+        <header class="navbar" data-nav-section="navbar">
+            <div class="brand focusable" tabindex="0" onclick="switchTab('home')">AURA</div>
+            <nav class="nav-menu">
                 <button class="focusable nav-btn active" data-tab="home" onclick="switchTab('home')">Início</button>
                 <button class="focusable nav-btn" data-tab="movies" onclick="switchTab('movies')">Filmes</button>
                 <button class="focusable nav-btn" data-tab="series" onclick="switchTab('series')">Séries</button>
@@ -41,14 +40,13 @@
                 <button class="focusable nav-btn" data-tab="favorites" onclick="switchTab('favorites')">Favoritos</button>
             </nav>
             <div class="nav-right">
-                <input type="text" id="global-search" placeholder="Pesquisar..." class="focusable search-input-tv" readonly onclick="activateSearchInput(this)" oninput="handleGlobalSearch(this.value)">
                 <span id="header-user-info" class="user-badge">Utilizador</span>
                 <button class="focusable nav-btn logout-btn" onclick="logoutSession()">Sair</button>
             </div>
         </header>
 
         <!-- VIEWPORT INÍCIO (HOME) -->
-        <div class="main-viewport active-view" id="view-home">
+        <div class="main-viewport active-view" id="view-home" data-nav-section="home">
             <div id="hero-banner" class="hero-section">
                 <div class="hero-gradient"></div>
                 <div class="hero-content">
@@ -83,13 +81,14 @@
 
             <footer class="app-footer">
                 <span id="footer-expiration">Expiração: --</span>
-                <span>Aura Player OS v2.6</span>
+                <span>Aura Player OS v3.0</span>
             </footer>
         </div>
 
         <!-- VIEWPORT CATÁLOGO -->
-        <div class="catalog-layout-view" id="view-catalog" style="display:none;">
+        <div class="catalog-layout-view" id="view-catalog" style="display:none;" data-nav-section="catalog">
             <aside class="catalog-sidebar" id="catalog-sidebar">
+                <input type="text" id="global-search" placeholder="Pesquisar..." class="focusable search-input-tv" readonly onclick="activateSearchInput(this)" oninput="handleGlobalSearch(this.value)">
                 <div id="categories-list" class="categories-list"></div>
             </aside>
             <main class="catalog-main" id="catalog-main-area">
@@ -103,7 +102,7 @@
     </div>
 
     <!-- TELA DE DETALHES -->
-    <div id="details-screen" class="screen">
+    <div id="details-screen" class="screen" data-nav-section="details">
         <div id="details-backdrop" class="details-backdrop">
             <div class="hero-gradient"></div>
             <button class="focusable back-btn-abs" id="btn-details-back" onclick="goBackToMain()">❮ Voltar</button>
@@ -131,32 +130,59 @@
         </div>
     </div>
 
-    <!-- MODAL DE TRAILER (YOUTUBE) -->
-    <div id="trailer-modal" class="modal-overlay" style="display:none;">
+    <!-- MODAL DE TRAILER -->
+    <div id="trailer-modal" class="modal-overlay" style="display:none;" data-nav-section="modal">
         <div class="modal-card trailer-card">
             <div class="trailer-header">
-                <h3 id="trailer-title">Trailer</h3>
+                <h3 id="trailer-title">Trailer Oficial</h3>
                 <button class="focusable btn-dark-info" onclick="closeTrailerModal()">✕ Fechar</button>
             </div>
-            <div id="trailer-player-container" style="width:100%; height:500px;">
-                <iframe id="trailer-iframe" width="100%" height="100%" src="" frameborder="0" allowfullscreen></iframe>
+            <div style="width:100%; height:500px; background:#000; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+                <iframe id="trailer-iframe" width="100%" height="100%" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen style="display:none;"></iframe>
+                <div id="trailer-error-msg" style="color:#94a3b8; font-size:20px; text-align:center; padding:20px; display:none;">
+                    Trailer indisponível para este título no servidor IPTV.
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- PLAYER DE VÍDEO -->
-    <div id="player-screen" class="screen">
+    <!-- PLAYER DE VÍDEO PROFISSIONAL -->
+    <div id="player-screen" class="screen" data-nav-section="player">
         <video id="video-player" playsinline></video>
         
-        <!-- MODAL DE ÁUDIO E LEGENDA -->
-        <div id="track-selector-modal" class="modal-overlay" style="display:none;">
+        <!-- MODAL DE CONFIGURAÇÕES (ÁUDIO E LEGENDA) -->
+        <div id="track-selector-modal" class="modal-overlay" style="display:none;" data-nav-section="modal">
             <div class="modal-card">
-                <h3 id="modal-track-title">Selecionar Faixa</h3>
+                <h3 id="modal-track-title">Configurações de Áudio e Legenda</h3>
                 <div id="modal-track-options" class="modal-options-list"></div>
                 <button class="focusable btn-dark-info" onclick="closeTrackModal()">Fechar</button>
             </div>
         </div>
 
+        <!-- DIALOGO DE CONTINUAR ASSISTINDO -->
+        <div id="resume-prompt-modal" class="modal-overlay" style="display:none;" data-nav-section="modal">
+            <div class="modal-card" style="text-align: center;">
+                <h3>Deseja continuar assistindo?</h3>
+                <p id="resume-time-label" style="color: #94a3b8; margin: 15px 0;">Parou em 00:00</p>
+                <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                    <button class="focusable btn-cyan" onclick="confirmResume(true)">Continuar</button>
+                    <button class="focusable btn-dark-info" onclick="confirmResume(false)">Recomeçar do início</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BALÃO DE CONTAGEM REGRESSIVA PRÓXIMO EPISÓDIO -->
+        <div id="next-episode-toast" class="next-episode-toast" style="display:none;">
+            <div class="net-info">
+                <span id="next-ep-title-label">Próximo episódio em 15s</span>
+            </div>
+            <div class="net-actions">
+                <button class="focusable btn-cyan" onclick="playNextEpisodeNow()">Assistir agora</button>
+                <button class="focusable btn-dark-info" onclick="cancelNextEpisode()">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- OVERLAY DO PLAYER -->
         <div class="player-overlay" id="player-overlay">
             <div class="player-top-bar">
                 <button class="focusable player-back-btn" onclick="closePlayer()">❮ Voltar</button>
@@ -171,11 +197,10 @@
                         <span id="player-current-time">00:00</span> / <span id="player-total-time">00:00</span>
                     </div>
                     <div class="player-buttons-group">
-                        <button class="focusable player-btn-minimal" onclick="skipTime(-10)">⏪ 10s</button>
                         <button class="focusable player-btn-minimal" id="player-play-pause-btn" onclick="togglePlayPause()">⏸ Pausar</button>
-                        <button class="focusable player-btn-minimal" onclick="skipTime(10)">10s ⏩</button>
-                        <button class="focusable player-btn-minimal" id="btn-player-audio" onclick="openAudioModal()">🔊 Áudio</button>
-                        <button class="focusable player-btn-minimal" id="btn-player-sub" onclick="openSubModal()">💬 Legenda</button>
+                        <button class="focusable player-btn-minimal" onclick="skipTime(-10)">⏪ -10s</button>
+                        <button class="focusable player-btn-minimal" onclick="skipTime(10)">+10s ⏩</button>
+                        <button class="focusable player-btn-minimal" onclick="openSettingsModal()">⚙ Configurações</button>
                     </div>
                 </div>
             </div>

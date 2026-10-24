@@ -28,17 +28,16 @@ body {
     flex-direction: column;
 }
 
-/* FOCO NEON CIANO AURA */
-.focusable:focus, button:focus, input:focus, .media-card:focus, .cat-item:focus, .season-tab:focus {
+/* FOCO ESPACIAL CIANO AURA */
+.focusable:focus, button:focus, input:focus, .media-card.spatial-focused, .cat-item.spatial-focused, .season-tab.spatial-focused, .nav-btn.spatial-focused {
     outline: none !important;
     border: 3px solid #00f2fe !important;
-    transform: scale(1.05);
-    box-shadow: 0 0 30px rgba(0, 242, 254, 0.9);
+    transform: scale(1.04);
+    box-shadow: 0 0 25px rgba(0, 242, 254, 0.9);
     z-index: 50;
-    background-color: rgba(0, 242, 254, 0.15) !important;
+    background-color: rgba(0, 242, 254, 0.2) !important;
 }
 
-/* LOADER CIRCULAR */
 .loader-overlay {
     position: fixed;
     top: 0;
@@ -74,7 +73,6 @@ body {
     letter-spacing: 1px;
 }
 
-/* LOGIN */
 #login-screen {
     justify-content: center;
     align-items: center;
@@ -127,7 +125,6 @@ body {
     cursor: pointer;
 }
 
-/* NAVBAR SUPERIOR FIXA */
 .navbar {
     display: flex;
     align-items: center;
@@ -148,6 +145,8 @@ body {
     color: #00f2fe;
     letter-spacing: 3px;
     cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 6px;
 }
 
 .nav-menu {
@@ -180,10 +179,11 @@ body {
 .search-input-tv {
     background: rgba(255,255,255,0.08);
     border: 1px solid #334155;
-    padding: 10px 20px;
-    border-radius: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
     color: #fff;
-    width: 250px;
+    width: 100%;
+    margin-bottom: 20px;
     font-size: 16px;
 }
 
@@ -196,11 +196,10 @@ body {
     color: #f87171 !important;
 }
 
-/* VIEWPORT HOME */
 .main-viewport {
     flex: 1;
     overflow-y: auto;
-    padding-top: 90px; /* Compensa a navbar fixa */
+    padding-top: 90px;
     padding-bottom: 60px;
     scrollbar-width: none;
 }
@@ -302,7 +301,6 @@ body {
     padding: 20px 0;
 }
 
-/* CAPAS E EPISÓDIOS */
 .media-card {
     min-width: 200px;
     width: 200px;
@@ -335,7 +333,6 @@ body {
     text-overflow: ellipsis;
 }
 
-/* BOTÃO DE REMOVER "CONTINUAR ASSISTINDO" */
 .card-remove-btn {
     position: absolute;
     top: 8px;
@@ -354,7 +351,6 @@ body {
     justify-content: center;
 }
 
-/* CATÁLOGO E SIDEBAR */
 .catalog-layout-view {
     display: flex;
     width: 100%;
@@ -426,7 +422,6 @@ body {
 }
 .catalog-grid::-webkit-scrollbar { display: none; }
 
-/* TELA DE DETALHES */
 .details-backdrop {
     height: 520px;
     background-size: cover;
@@ -506,14 +501,13 @@ body {
     overflow-y: auto;
 }
 
-/* MODAL DE TRAILER */
 .modal-overlay {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.85);
+    background: rgba(0,0,0,0.88);
     z-index: 2000;
     display: flex;
     justify-content: center;
@@ -525,7 +519,7 @@ body {
     border: 1px solid #334155;
     padding: 30px;
     border-radius: 12px;
-    width: 900px;
+    width: 950px;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -567,7 +561,6 @@ body {
     font-size: 18px;
 }
 
-/* PLAYER MINIMALISTA ESTILO IBO / STREAMING */
 #player-screen {
     background: #000;
     justify-content: flex-end;
@@ -639,7 +632,6 @@ body {
 }
 
 .player-time-info { font-size: 18px; color: #cbd5e1; }
-
 .player-buttons-group { display: flex; gap: 15px; }
 
 .player-btn-minimal {
@@ -651,6 +643,33 @@ body {
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
+}
+
+/* BALÃO PRÓXIMO EPISÓDIO */
+.next-episode-toast {
+    position: absolute;
+    bottom: 120px;
+    right: 60px;
+    background: rgba(18, 24, 36, 0.95);
+    border: 1px solid #00f2fe;
+    padding: 20px 30px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    z-index: 2500;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+}
+
+.net-info span {
+    font-size: 18px;
+    color: #fff;
+    font-weight: bold;
+}
+
+.net-actions {
+    display: flex;
+    gap: 12px;
 }
 
 .app-footer {
