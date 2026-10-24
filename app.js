@@ -1,6 +1,6 @@
 // CONFIGURAÇÃO DO SUPABASE (Insere aqui os teus dados copiados do painel)
 const SUPABASE_URL = 'https://bnflihuudcqjehhoxjcg.supabase.co';
-const SUPABASE_KEY = '';
+const SUPABASE_KEY = 'sb_publishable__HcflNHnHAf-XIpNZyLs_g_dO8sFaYx';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentCredentials = null;
@@ -8,7 +8,6 @@ let hlsInstance = null;
 let currentTab = 'home';
 let favoritesList = JSON.parse(localStorage.getItem('iptv_favorites') || '[]');
 let currentMedia = null;
-let activeTrailerKey = null;
 
 let memoryCache = {
     vod: null,
@@ -26,7 +25,6 @@ let heroInterval = null;
 let pendingResumeData = null;
 let currentSeriesEpisodes = [];
 let currentEpisodeIndex = -1;
-let nextEpisodeTimer = null;
 let countdownInterval = null;
 
 function showLoader(text = "Carregando...") {
@@ -52,16 +50,11 @@ function handlePhysicalBackButton() {
     const detailsActive = document.getElementById('details-screen').classList.contains('active');
     const catalogActive = document.getElementById('view-catalog').style.display !== 'none';
     const modalActive = document.getElementById('track-selector-modal').style.display !== 'none';
-    const trailerActive = document.getElementById('trailer-modal').style.display !== 'none';
     const resumeActive = document.getElementById('resume-prompt-modal').style.display !== 'none';
 
     if (resumeActive) {
         document.getElementById('resume-prompt-modal').style.display = 'none';
         initSpatialFocus();
-        return;
-    }
-    if (trailerActive) {
-        closeTrailerModal();
         return;
     }
     if (modalActive) {
@@ -101,16 +94,16 @@ function getFocusableElements() {
     if (document.getElementById('resume-prompt-modal').style.display === 'flex') {
         return Array.from(document.getElementById('resume-prompt-modal').querySelectorAll('.focusable, button'));
     }
-    if (document.getElementById('trailer-modal').style.display === 'flex') {
-        return Array.from(document.getElementById('trailer-modal').querySelectorAll('.focusable, button'));
-    }
     if (document.getElementById('track-selector-modal').style.display === 'flex') {
         return Array.from(document.getElementById('track-selector-modal').querySelectorAll('.focusable, button'));
+    }
+    if (document.getElementById('next-episode-toast').style.display === 'flex') {
+        return Array.from(document.getElementById('next-episode-toast').querySelectorAll('.focusable, button'));
     }
     if (document.getElementById('player-screen').classList.contains('active')) {
         const overlay = document.getElementById('player-overlay');
         if (overlay.classList.contains('visible')) {
-            return Array.from(overlay.querySelectorAll('.focusable, button'));
+            return Array.from(overlay.querySelectorAll('.focusable, button')).filter(b => b.style.display !== 'none');
         }
         return [];
     }
@@ -135,6 +128,7 @@ function initSpatialFocus() {
     current.focus();
 }
 
+// FOCUS MANAGER ORIGINAL RESTAURADO INTEGRALMENTE
 function moveSpatialFocus(direction) {
     const elements = getFocusableElements();
     if (elements.length === 0) return;
@@ -197,7 +191,6 @@ function moveSpatialFocus(direction) {
     }
 }
 
-// GERENCIAMENTO DE EVENTOS DE TECLADO / CONTROLE REMOTO
 window.addEventListener('keydown', (e) => {
     pushHistoryState();
 
@@ -218,7 +211,6 @@ window.addEventListener('keydown', (e) => {
                 e.preventDefault();
                 return;
             } else {
-                // Se a barra de progresso estiver em foco no player, dar OK pode pausar ou ignorar
                 const activeEl = document.activeElement;
                 if (activeEl && activeEl.id === 'player-progress-bar-container') {
                     togglePlayPause();
@@ -245,6 +237,19 @@ window.addEventListener('keydown', (e) => {
                 e.preventDefault();
                 return;
             }
+            // Atalho seguro exclusivo para mover entre Próximo Episódio e Configurações no Player
+            if (isVisible) {
+                const nextBtn = document.getElementById('player-next-ep-btn');
+                const settingsBtn = document.getElementById('player-settings-btn');
+                if (document.activeElement === nextBtn && nextBtn.style.display !== 'none') {
+                    const elements = getFocusableElements();
+                    elements.forEach(el => el.classList.remove('spatial-focused'));
+                    settingsBtn.classList.add('spatial-focused');
+                    settingsBtn.focus();
+                    e.preventDefault();
+                    return;
+                }
+            }
             skipTime(10);
             showPlayerControls();
             e.preventDefault();
@@ -256,6 +261,18 @@ window.addEventListener('keydown', (e) => {
                 e.preventDefault();
                 return;
             }
+            if (isVisible) {
+                const nextBtn = document.getElementById('player-next-ep-btn');
+                const settingsBtn = document.getElementById('player-settings-btn');
+                if (document.activeElement === settingsBtn && nextBtn.style.display !== 'none') {
+                    const elements = getFocusableElements();
+                    elements.forEach(el => el.classList.remove('spatial-focused'));
+                    nextBtn.classList.add('spatial-focused');
+                    nextBtn.focus();
+                    e.preventDefault();
+                    return;
+                }
+            }
             skipTime(-10);
             showPlayerControls();
             e.preventDefault();
@@ -264,8 +281,7 @@ window.addEventListener('keydown', (e) => {
         if (e.key === 'ArrowUp' || e.keyCode === 38) {
             if (isVisible) {
                 const activeEl = document.activeElement;
-                if (activeEl && activeEl.id === 'player-settings-btn') {
-                    // Sobe para a barra de progresso
+                if (activeEl && (activeEl.id === 'player-settings-btn' || activeEl.id === 'player-next-ep-btn')) {
                     const progressBar = document.getElementById('player-progress-bar-container');
                     const elements = getFocusableElements();
                     elements.forEach(el => el.classList.remove('spatial-focused'));
@@ -284,12 +300,11 @@ window.addEventListener('keydown', (e) => {
             if (isVisible) {
                 const activeEl = document.activeElement;
                 if (activeEl && activeEl.id === 'player-progress-bar-container') {
-                    // Desce para o botão de configurações
-                    const settingsBtn = document.getElementById('player-settings-btn');
+                    const targetBtn = document.getElementById('player-next-ep-btn').style.display !== 'none' ? document.getElementById('player-next-ep-btn') : document.getElementById('player-settings-btn');
                     const elements = getFocusableElements();
                     elements.forEach(el => el.classList.remove('spatial-focused'));
-                    settingsBtn.classList.add('spatial-focused');
-                    settingsBtn.focus();
+                    targetBtn.classList.add('spatial-focused');
+                    targetBtn.focus();
                     e.preventDefault();
                     return;
                 }
@@ -301,7 +316,6 @@ window.addEventListener('keydown', (e) => {
             }
         }
         
-        // Se pressionar qualquer outra seta sem os controles visíveis, exibe-os
         if (!isVisible && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
             showPlayerControls();
             e.preventDefault();
@@ -426,7 +440,7 @@ function renderSliderCards(items, container, type, isContinue = false) {
 
     items.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'media-card focusable';
+        card.className = 'media-card focusable' + (isContinue ? ' continue-card' : '');
         card.tabIndex = 0;
 
         const cover = item.stream_icon || item.cover || item.poster || item.backdrop;
@@ -434,12 +448,31 @@ function renderSliderCards(items, container, type, isContinue = false) {
             card.style.backgroundImage = `url('${cover}')`;
         }
 
-        const overlay = document.createElement('div');
-        overlay.className = 'card-title-overlay';
-        overlay.innerText = item.name || item.title;
-        card.appendChild(overlay);
-
         if (isContinue) {
+            const progPercent = item.duration_seconds > 0 ? Math.min(100, (item.progress_seconds / item.duration_seconds) * 100) : 0;
+            
+            const progressBg = document.createElement('div');
+            progressBg.className = 'card-progress-bar-bg';
+            const progressFill = document.createElement('div');
+            progressFill.className = 'card-progress-bar-fill';
+            progressFill.style.width = `${progPercent}%`;
+            progressBg.appendChild(progressFill);
+            card.appendChild(progressBg);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'card-title-overlay';
+            
+            const titleSpan = document.createElement('span');
+            titleSpan.innerText = item.title;
+            overlay.appendChild(titleSpan);
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'card-subtitle-time';
+            timeSpan.innerText = `${item.subtitle || 'Continuar'} • Parou em ${formatTime(item.progress_seconds)}`;
+            overlay.appendChild(timeSpan);
+
+            card.appendChild(overlay);
+
             const removeBtn = document.createElement('button');
             removeBtn.className = 'focusable card-remove-btn';
             removeBtn.innerText = '✕';
@@ -449,11 +482,16 @@ function renderSliderCards(items, container, type, isContinue = false) {
                 removeProgressItem(item.media_id);
             };
             card.appendChild(removeBtn);
+        } else {
+            const overlay = document.createElement('div');
+            overlay.className = 'card-title-overlay';
+            overlay.innerText = item.name || item.title;
+            card.appendChild(overlay);
         }
 
         card.onclick = () => {
             if (isContinue) {
-                prepareAndOpenPlayer(item.title, item.subtitle || 'Continuar', item.media_id, item.progress_seconds, item.backdrop, item.duration_seconds || 0);
+                prepareAndOpenPlayer(item.title, item.subtitle || 'Continuar', item.url, item.media_id, item.progress_seconds, item.backdrop);
             } else {
                 openDetails(item, type);
             }
@@ -465,48 +503,25 @@ function renderSliderCards(items, container, type, isContinue = false) {
 }
 
 function setupHeroBanner(item, type) {
-    document.getElementById('hero-title').innerText = item.name || item.title;
-    document.getElementById('hero-description').innerText = item.plot || "Disponível no seu plano • Destaque Aura";
-    const cover = item.stream_icon || item.cover || item.poster;
-    if (cover) {
-        document.getElementById('hero-banner').style.backgroundImage = `url('${cover}')`;
+    const title = item.name || item.title || "Destaque";
+    document.getElementById('hero-title').innerText = title;
+    document.getElementById('hero-description').innerText = item.plot || "Disponível no seu plano • Lançamento do catálogo";
+    
+    const categoryTagEl = document.getElementById('hero-category-tag');
+    if (categoryTagEl) {
+        categoryTagEl.innerText = type === 'movie' ? 'FILME • DESTAQUE' : 'SÉRIE • LANÇAMENTO';
     }
-    activeTrailerKey = item.youtube_trailer || null;
+
+    // Tenta buscar a melhor imagem de fundo disponível
+    const backdropImg = item.backdrop_path?.[0] || item.backdrop || item.stream_icon || item.cover || item.poster;
+    
+    if (backdropImg) {
+        const heroBanner = document.getElementById('hero-banner');
+        heroBanner.style.backgroundImage = `url('${backdropImg}')`;
+    }
+
     document.getElementById('hero-watch-btn').onclick = () => openDetails(item, type);
     document.getElementById('hero-info-btn').onclick = () => openDetails(item, type);
-}
-
-function openHeroTrailer() {
-    openTrailerModal(activeTrailerKey);
-}
-
-function openDetailTrailer() {
-    openTrailerModal(activeTrailerKey);
-}
-
-function openTrailerModal(youtubeKey) {
-    const modal = document.getElementById('trailer-modal');
-    const iframe = document.getElementById('trailer-iframe');
-    const errorMsg = document.getElementById('trailer-error-msg');
-
-    if (youtubeKey && youtubeKey.trim() !== '') {
-        iframe.src = `https://www.youtube.com/embed/${youtubeKey}?autoplay=1&enablejsapi=1`;
-        iframe.style.display = 'block';
-        errorMsg.style.display = 'none';
-    } else {
-        iframe.src = '';
-        iframe.style.display = 'none';
-        errorMsg.style.display = 'block';
-    }
-
-    modal.style.display = 'flex';
-    initSpatialFocus();
-}
-
-function closeTrailerModal() {
-    document.getElementById('trailer-modal').style.display = 'none';
-    document.getElementById('trailer-iframe').src = '';
-    initSpatialFocus();
 }
 
 async function switchTab(tabName) {
@@ -649,7 +664,7 @@ function renderCatalogGrid(itemsList, title, type) {
 
         if (type === 'live') {
             const liveUrl = `${currentCredentials.url.replace(/\/$/, '')}/live/${currentCredentials.user}/${currentCredentials.pass}/${item.stream_id}.ts`;
-            card.onclick = () => prepareAndOpenPlayer(item.name, "TV ao Vivo", liveUrl, 0, cover);
+            card.onclick = () => prepareAndOpenPlayer(item.name, "TV ao Vivo", liveUrl, item.stream_id, 0, cover);
         } else {
             const mediaType = type || (item.stream_id ? 'movie' : 'series');
             card.onclick = () => openDetails(item, mediaType);
@@ -665,16 +680,17 @@ async function openDetails(item, type) {
     currentMedia = { item, type };
     const title = item.name || item.title;
     const cover = item.stream_icon || item.cover || item.poster;
+    const mediaId = String(item.stream_id || item.series_id || item.id);
 
     showLoader("Carregando detalhes...");
     let detailedInfo = item;
     if (type === 'movie' || item.stream_id) {
-        const vodInfoData = await fetchIptvApi('get_vod_info', `&vod_id=${item.stream_id}`);
+        const vodInfoData = await fetchIptvApi('get_vod_info', `&vod_id=${mediaId}`);
         if (vodInfoData && vodInfoData.info) {
             detailedInfo = { ...item, ...vodInfoData.info };
         }
     } else if (type === 'series' || item.series_id) {
-        const seriesInfoData = await fetchIptvApi('get_series_info', `&series_id=${item.series_id || item.id}`);
+        const seriesInfoData = await fetchIptvApi('get_series_info', `&series_id=${mediaId}`);
         if (seriesInfoData && seriesInfoData.info) {
             detailedInfo = { ...item, ...seriesInfoData.info };
         }
@@ -687,8 +703,6 @@ async function openDetails(item, type) {
     document.getElementById('details-year').innerText = detailedInfo.year || detailedInfo.releasedate?.substring(0, 4) || '2026';
     document.getElementById('details-genre').innerText = detailedInfo.genre || 'Gênero';
 
-    activeTrailerKey = detailedInfo.youtube_trailer || null;
-    
     const bgCover = detailedInfo.backdrop_path?.[0] || cover;
     if (bgCover) {
         document.getElementById('details-backdrop').style.backgroundImage = `url('${bgCover}')`;
@@ -709,25 +723,25 @@ async function openDetails(item, type) {
     if (type === 'series' || item.series_id) {
         seasonsContainer.style.display = 'block';
         episodesViewport.style.display = 'block';
-        await loadSeriesInfo(item.series_id || item.id, bgCover);
+        await loadSeriesInfo(mediaId, bgCover);
     } else {
         seasonsContainer.style.display = 'none';
         episodesViewport.style.display = 'none';
         
-        const playUrl = `${currentCredentials.url.replace(/\/$/, '')}/movie/${currentCredentials.user}/${currentCredentials.pass}/${item.stream_id}.${item.container_extension || 'mp4'}`;
-        const savedProg = await getSavedProgress(item.stream_id);
+        const playUrl = `${currentCredentials.url.replace(/\/$/, '')}/movie/${currentCredentials.user}/${currentCredentials.pass}/${mediaId}.${item.container_extension || 'mp4'}`;
+        const savedProg = await getSavedProgress(mediaId);
         
         const playBtn = document.getElementById('details-play-btn');
-        playBtn.innerText = savedProg > 30 ? '▶ Continuar assistindo' : '▶ Assistir';
+        playBtn.innerText = savedProg > 15 ? '▶ Continuar assistindo' : '▶ Assistir';
         
         playBtn.onclick = async () => {
-            if (savedProg > 30) {
-                pendingResumeData = { title, subtitle: "Filme", url: playUrl, start: savedProg, backdrop: bgCover };
+            if (savedProg > 15) {
+                pendingResumeData = { title, subtitle: "Filme", url: playUrl, mediaId: mediaId, start: savedProg, backdrop: bgCover };
                 document.getElementById('resume-time-label').innerText = `Parou em ${formatTime(savedProg)}`;
                 document.getElementById('resume-prompt-modal').style.display = 'flex';
                 initSpatialFocus();
             } else {
-                prepareAndOpenPlayer(title, "Filme", playUrl, 0, bgCover);
+                prepareAndOpenPlayer(title, "Filme", playUrl, mediaId, 0, bgCover);
             }
         };
     }
@@ -739,7 +753,7 @@ function confirmResume(shouldResume) {
     document.getElementById('resume-prompt-modal').style.display = 'none';
     if (pendingResumeData) {
         const start = shouldResume ? pendingResumeData.start : 0;
-        prepareAndOpenPlayer(pendingResumeData.title, pendingResumeData.subtitle, pendingResumeData.url, start, pendingResumeData.backdrop);
+        prepareAndOpenPlayer(pendingResumeData.title, pendingResumeData.subtitle, pendingResumeData.url, pendingResumeData.mediaId, start, pendingResumeData.backdrop);
         pendingResumeData = null;
     }
 }
@@ -806,10 +820,19 @@ function renderEpisodesGrid(episodesList, seriesCover) {
         overlay.innerText = `T${ep.season} E${ep.episode_num}: ${ep.title}`;
         card.appendChild(overlay);
 
-        const playUrl = `${currentCredentials.url.replace(/\/$/, '')}/series/${currentCredentials.user}/${currentCredentials.pass}/${ep.id}.${ep.container_extension || 'mp4'}`;
-        card.onclick = () => {
+        const epId = String(ep.id);
+        const playUrl = `${currentCredentials.url.replace(/\/$/, '')}/series/${currentCredentials.user}/${currentCredentials.pass}/${epId}.${ep.container_extension || 'mp4'}`;
+        card.onclick = async () => {
             currentEpisodeIndex = idx;
-            prepareAndOpenPlayer(ep.title, `T${ep.season} E${ep.episode_num}`, playUrl, 0, cover);
+            const savedProg = await getSavedProgress(epId);
+            if (savedProg > 15) {
+                pendingResumeData = { title: ep.title, subtitle: `T${ep.season} E${ep.episode_num}`, url: playUrl, mediaId: epId, start: savedProg, backdrop: cover };
+                document.getElementById('resume-time-label').innerText = `Parou em ${formatTime(savedProg)}`;
+                document.getElementById('resume-prompt-modal').style.display = 'flex';
+                initSpatialFocus();
+            } else {
+                prepareAndOpenPlayer(ep.title, `T${ep.season} E${ep.episode_num}`, playUrl, epId, 0, cover);
+            }
         };
 
         slider.appendChild(card);
@@ -828,7 +851,6 @@ function toggleFavorite(item) {
     localStorage.setItem('iptv_favorites', JSON.stringify(favoritesList));
 }
 
-// PLAYER DE VÍDEO ESTABILIZADO
 let videoElement = null;
 let saveProgressInterval = null;
 let controlsTimeout = null;
@@ -836,17 +858,27 @@ let currentMediaId = null;
 let currentMediaBackdrop = '';
 let currentMediaTitle = '';
 let currentMediaSubtitle = '';
+let currentMediaStreamUrl = '';
 
-function prepareAndOpenPlayer(title, subtitle, url, startSeconds = 0, backdrop = '', durationHint = 0) {
-    currentMediaId = url;
+function prepareAndOpenPlayer(title, subtitle, url, mediaId, startSeconds = 0, backdrop = '') {
+    currentMediaId = String(mediaId);
     currentMediaBackdrop = backdrop;
     currentMediaTitle = title;
     currentMediaSubtitle = subtitle;
+    currentMediaStreamUrl = url;
     openPlayer(title, subtitle, url, startSeconds, backdrop);
 }
 
 function openPlayer(title, subtitle, url, startSeconds = 0, backdrop = '') {
     document.getElementById('player-title').innerText = `${title} • ${subtitle}`;
+    
+    const nextEpBtn = document.getElementById('player-next-ep-btn');
+    if (currentSeriesEpisodes.length > 0 && currentEpisodeIndex < currentSeriesEpisodes.length - 1) {
+        nextEpBtn.style.display = 'block';
+    } else {
+        nextEpBtn.style.display = 'none';
+    }
+
     switchScreen('player-screen');
 
     videoElement = document.getElementById('video-player');
@@ -870,13 +902,10 @@ function openPlayer(title, subtitle, url, startSeconds = 0, backdrop = '') {
 
     if (saveProgressInterval) clearInterval(saveProgressInterval);
     saveProgressInterval = setInterval(() => {
-        if (videoElement && videoElement.currentTime > 30 && videoElement.duration > 0) {
-            const pct = (videoElement.currentTime / videoElement.duration) * 100;
-            if (pct >= 2) {
-                saveProgressToSupabase(currentMediaId, currentMediaTitle, currentMediaSubtitle, currentMediaBackdrop, videoElement.currentTime, videoElement.duration);
-            }
+        if (videoElement && videoElement.currentTime > 5 && videoElement.duration > 0) {
+            saveProgressLocallyAndRemote(currentMediaId, currentMediaTitle, currentMediaSubtitle, currentMediaStreamUrl, currentMediaBackdrop, videoElement.currentTime, videoElement.duration);
         }
-    }, 10000);
+    }, 5000);
 
     videoElement.ontimeupdate = () => {
         if (videoElement.duration) {
@@ -903,6 +932,12 @@ function showNextEpisodeToast() {
     document.getElementById('next-ep-title-label').innerText = `Próximo episódio em ${countdown}s`;
     toast.style.display = 'flex';
 
+    const btnNow = document.getElementById('btn-next-ep-now');
+    const elements = getFocusableElements();
+    elements.forEach(el => el.classList.remove('spatial-focused'));
+    btnNow.classList.add('spatial-focused');
+    btnNow.focus();
+
     if (countdownInterval) clearInterval(countdownInterval);
     countdownInterval = setInterval(() => {
         countdown--;
@@ -919,6 +954,7 @@ function showNextEpisodeToast() {
 function cancelNextEpisode() {
     if (countdownInterval) clearInterval(countdownInterval);
     document.getElementById('next-episode-toast').style.display = 'none';
+    showPlayerControls();
 }
 
 function playNextEpisodeNow() {
@@ -926,8 +962,9 @@ function playNextEpisodeNow() {
     if (currentSeriesEpisodes.length > 0 && currentEpisodeIndex < currentSeriesEpisodes.length - 1) {
         currentEpisodeIndex++;
         const nextEp = currentSeriesEpisodes[currentEpisodeIndex];
-        const playUrl = `${currentCredentials.url.replace(/\/$/, '')}/series/${currentCredentials.user}/${currentCredentials.pass}/${nextEp.id}.${nextEp.container_extension || 'mp4'}`;
-        prepareAndOpenPlayer(nextEp.title, `T${nextEp.season} E${nextEp.episode_num}`, playUrl, 0, currentMediaBackdrop);
+        const nextId = String(nextEp.id);
+        const playUrl = `${currentCredentials.url.replace(/\/$/, '')}/series/${currentCredentials.user}/${currentCredentials.pass}/${nextId}.${nextEp.container_extension || 'mp4'}`;
+        prepareAndOpenPlayer(nextEp.title, `T${nextEp.season} E${nextEp.episode_num}`, playUrl, nextId, 0, currentMediaBackdrop);
     }
 }
 
@@ -935,7 +972,6 @@ function showPlayerControls() {
     const overlay = document.getElementById('player-overlay');
     overlay.classList.add('visible');
     
-    // Foco automático inicial na barra de progresso do player
     const progressBar = document.getElementById('player-progress-bar-container');
     const elements = getFocusableElements();
     elements.forEach(el => el.classList.remove('spatial-focused'));
@@ -944,7 +980,7 @@ function showPlayerControls() {
 
     if (controlsTimeout) clearTimeout(controlsTimeout);
     controlsTimeout = setTimeout(() => {
-        if (!videoElement.paused && document.getElementById('track-selector-modal').style.display === 'none') {
+        if (!videoElement.paused && document.getElementById('track-selector-modal').style.display === 'none' && document.getElementById('next-episode-toast').style.display !== 'flex') {
             overlay.classList.remove('visible');
             initSpatialFocus();
         }
@@ -984,7 +1020,7 @@ function openSettingsModal() {
 
     const ptSubBtn = document.createElement('button');
     ptSubBtn.className = 'focusable track-option-btn';
-    ptSubBtn.innerText = "🇧🇷 Legenda em Português (Brasil)";
+    ptSubBtn.innerText = "🇧🇷 Português";
     ptSubBtn.onclick = () => {
         if (hlsInstance && hlsInstance.subtitleTracks && hlsInstance.subtitleTracks.length > 0) {
             hlsInstance.subtitleTrack = 0;
@@ -998,12 +1034,21 @@ function openSettingsModal() {
 
     const enSubBtn = document.createElement('button');
     enSubBtn.className = 'focusable track-option-btn';
-    enSubBtn.innerText = "🇺🇸 Legenda em Inglês";
+    enSubBtn.innerText = "🇺🇸 English";
     enSubBtn.onclick = () => {
-        alert("Legenda em Inglês ativada.");
+        alert("English subtitles enabled.");
         closeTrackModal();
     };
     container.appendChild(enSubBtn);
+
+    const esSubBtn = document.createElement('button');
+    esSubBtn.className = 'focusable track-option-btn';
+    esSubBtn.innerText = "🇪🇸 Español";
+    esSubBtn.onclick = () => {
+        alert("Subtítulos en Español habilitados.");
+        closeTrackModal();
+    };
+    container.appendChild(esSubBtn);
 
     const audioBtn = document.createElement('button');
     audioBtn.className = 'focusable track-option-btn';
@@ -1028,45 +1073,91 @@ function closeTrackModal() {
     showPlayerControls();
 }
 
-async function saveProgressToSupabase(mediaId, title, subtitle, backdrop, current, duration) {
-    if (!currentCredentials) return;
-    await supabaseClient.from('user_progress').upsert({
+function saveProgressLocallyAndRemote(mediaId, title, subtitle, url, backdrop, current, duration) {
+    if (!currentCredentials || !mediaId) return;
+    const storageKey = `aura_progress_${currentCredentials.user}`;
+    let allProgress = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    
+    allProgress[mediaId] = {
+        media_id: mediaId,
+        title,
+        subtitle,
+        url,
+        backdrop,
+        progress_seconds: current,
+        duration_seconds: duration,
+        updated_at: new Date().toISOString()
+    };
+    
+    localStorage.setItem(storageKey, JSON.stringify(allProgress));
+
+    supabaseClient.from('user_progress').upsert({
         user_id: currentCredentials.user,
         media_id: mediaId,
         title,
         subtitle,
+        url,
         backdrop,
         progress_seconds: current,
         duration_seconds: duration,
         updated_at: new Date()
-    }, { onConflict: 'user_id,media_id' });
+    }, { onConflict: 'user_id,media_id' }).then(() => {});
 }
 
 async function getSavedProgress(mediaId) {
-    if (!currentCredentials) return 0;
-    const { data } = await supabaseClient
-        .from('user_progress')
-        .select('progress_seconds')
-        .eq('user_id', currentCredentials.user)
-        .eq('media_id', mediaId)
-        .single();
-    return data ? data.progress_seconds : 0;
+    if (!currentCredentials || !mediaId) return 0;
+    const storageKey = `aura_progress_${currentCredentials.user}`;
+    let allProgress = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    if (allProgress[mediaId]) {
+        return allProgress[mediaId].progress_seconds;
+    }
+
+    try {
+        const { data } = await supabaseClient
+            .from('user_progress')
+            .select('progress_seconds')
+            .eq('user_id', currentCredentials.user)
+            .eq('media_id', String(mediaId))
+            .single();
+        return data ? data.progress_seconds : 0;
+    } catch(e) {
+        return 0;
+    }
 }
 
 async function loadContinueWatching() {
     if (!currentCredentials) return;
-    const { data } = await supabaseClient
-        .from('user_progress')
-        .select('*')
-        .eq('user_id', currentCredentials.user)
-        .order('updated_at', { ascending: false });
+    const storageKey = `aura_progress_${currentCredentials.user}`;
+    let allProgress = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    
+    let items = Object.values(allProgress).filter(i => i.progress_seconds > 10);
+
+    try {
+        const { data } = await supabaseClient
+            .from('user_progress')
+            .select('*')
+            .eq('user_id', currentCredentials.user)
+            .order('updated_at', { ascending: false });
+        
+        if (data && data.length > 0) {
+            data.forEach(d => {
+                if (d.progress_seconds > 10) {
+                    allProgress[d.media_id] = d;
+                }
+            });
+            localStorage.setItem(storageKey, JSON.stringify(allProgress));
+            items = Object.values(allProgress).filter(i => i.progress_seconds > 10);
+        }
+    } catch(e) {}
+
+    items.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
     const slider = document.getElementById('slider-continue');
     slider.innerHTML = '';
 
-    if (data && data.length > 0) {
+    if (items.length > 0) {
         document.getElementById('row-continue-container').style.display = 'block';
-        renderSliderCards(data, slider, 'movie', true);
+        renderSliderCards(items, slider, 'movie', true);
     } else {
         document.getElementById('row-continue-container').style.display = 'none';
     }
@@ -1074,11 +1165,16 @@ async function loadContinueWatching() {
 
 async function removeProgressItem(mediaId) {
     if (!currentCredentials) return;
+    const storageKey = `aura_progress_${currentCredentials.user}`;
+    let allProgress = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    delete allProgress[mediaId];
+    localStorage.setItem(storageKey, JSON.stringify(allProgress));
+
     await supabaseClient
         .from('user_progress')
         .delete()
         .eq('user_id', currentCredentials.user)
-        .eq('media_id', mediaId);
+        .eq('media_id', String(mediaId));
     loadContinueWatching();
 }
 
@@ -1089,8 +1185,8 @@ function closePlayer() {
     document.getElementById('next-episode-toast').style.display = 'none';
     document.getElementById('player-overlay').classList.remove('visible');
 
-    if (videoElement && videoElement.currentTime > 30 && videoElement.duration > 0) {
-        saveProgressToSupabase(currentMediaId, currentMediaTitle, currentMediaSubtitle, currentMediaBackdrop, videoElement.currentTime, videoElement.duration);
+    if (videoElement && videoElement.currentTime > 5 && videoElement.duration > 0) {
+        saveProgressLocallyAndRemote(currentMediaId, currentMediaTitle, currentMediaSubtitle, currentMediaStreamUrl, currentMediaBackdrop, videoElement.currentTime, videoElement.duration);
     }
     if (videoElement) {
         videoElement.pause();
@@ -1139,3 +1235,100 @@ window.addEventListener('DOMContentLoaded', async () => {
         switchScreen('login-screen');
     }
 });
+
+// Abertura dinâmica e real das legendas sincronizadas com o Player
+function openSettingsModal() {
+    const modal = document.getElementById('track-selector-modal');
+    const container = document.getElementById('modal-track-options');
+    container.innerHTML = '';
+
+    // Opção para desativar legendas
+    const offSubBtn = document.createElement('button');
+    offSubBtn.className = 'focusable track-option-btn';
+    offSubBtn.innerText = "❌ Desativar Legendas";
+    offSubBtn.onclick = () => {
+        if (hlsInstance) {
+            hlsInstance.subtitleTrack = -1;
+        } else if (videoElement) {
+            for (let i = 0; i < videoElement.textTracks.length; i++) {
+                videoElement.textTracks[i].mode = 'hidden';
+            }
+        }
+        alert("Legendas desativadas.");
+        closeTrackModal();
+    };
+    container.appendChild(offSubBtn);
+
+    // Verifica se existem legendas disponíveis no HLS ou no vídeo
+    let subTracks = [];
+    if (hlsInstance && hlsInstance.subtitleTracks) {
+        subTracks = hlsInstance.subtitleTracks;
+    }
+
+    if (subTracks.length > 0) {
+        subTracks.forEach((sub, idx) => {
+            const subBtn = document.createElement('button');
+            subBtn.className = 'focusable track-option-btn';
+            subBtn.innerText = `💬 ${sub.name || 'Legenda ' + (idx + 1)}`;
+            subBtn.onclick = () => {
+                hlsInstance.subtitleTrack = idx;
+                alert(`Legenda ${sub.name || (idx + 1)} ativada.`);
+                closeTrackModal();
+            };
+            container.appendChild(subBtn);
+        });
+    } else {
+        // Fallback inteligente para idiomas padrões caso o stream suporte faixas embutidas
+        const languages = [
+            { label: "🇧🇷 Português", lang: "pt" },
+            { label: "🇺🇸 English", lang: "en" },
+            { label: "🇪🇸 Español", lang: "es" }
+        ];
+
+        languages.forEach(l => {
+            const btn = document.createElement('button');
+            btn.className = 'focusable track-option-btn';
+            btn.innerText = l.label;
+            btn.onclick = () => {
+                if (videoElement && videoElement.textTracks.length > 0) {
+                    let found = false;
+                    for (let i = 0; i < videoElement.textTracks.length; i++) {
+                        if (videoElement.textTracks[i].language.includes(l.lang)) {
+                            videoElement.textTracks[i].mode = 'showing';
+                            found = true;
+                        } else {
+                            videoElement.textTracks[i].mode = 'hidden';
+                        }
+                    }
+                    if (found) {
+                        alert(`Legenda ${l.label} sincronizada.`);
+                    } else {
+                        alert(`Faixa de legenda ${l.label} não encontrada neste arquivo de vídeo.`);
+                    }
+                } else {
+                    alert(`Nenhuma legenda embutida ativa suportada pelo servidor para ${l.label}.`);
+                }
+                closeTrackModal();
+            };
+            container.appendChild(btn);
+        });
+    }
+
+    // Configuração de Áudio
+    const audioBtn = document.createElement('button');
+    audioBtn.className = 'focusable track-option-btn';
+    audioBtn.innerText = "🔊 Áudio Principal / Estéreo";
+    audioBtn.onclick = () => {
+        if (hlsInstance && hlsInstance.audioTracks && hlsInstance.audioTracks.length > 0) {
+            hlsInstance.audioTrack = 0;
+            alert("Áudio alternado.");
+        } else {
+            alert("Áudio padrão ativo.");
+        }
+        closeTrackModal();
+    };
+    container.appendChild(audioBtn);
+
+    modal.style.display = 'flex';
+    initSpatialFocus();
+}
